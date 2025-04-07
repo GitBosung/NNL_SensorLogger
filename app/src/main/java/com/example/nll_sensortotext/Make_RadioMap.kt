@@ -31,8 +31,12 @@ class Make_RadioMap : AppCompatActivity() {
     private lateinit var btnFinish: Button
     private lateinit var tvStatus: TextView
 
-    private val measurementRows = mutableListOf<String>()
+    // 최초 측정 시 동적으로 선정된 10개 SSID를 저장하는 변수 (처음 측정 후 이후 측정에 동일하게 사용)
+    private var dynamicAllowedWifiSSIDs: List<String>? = null
+
+    // 키를 SSID로 하여 AP들에 대한 최상의 ScanResult를 저장합니다.
     private val wifiResultsMap: MutableMap<String, ScanResult> = mutableMapOf()
+    private val measurementRows = mutableListOf<String>()
     private val PERMISSION_REQUEST_CODE = 100
     private var scanCount = 0
     private val totalScans = 3
@@ -49,9 +53,13 @@ class Make_RadioMap : AppCompatActivity() {
             if (success) {
                 val results = wifiManager.scanResults
                 for (result in results) {
-                    val bssid = result.BSSID
-                    if (!wifiResultsMap.containsKey(bssid) || result.level > wifiResultsMap[bssid]!!.level) {
-                        wifiResultsMap[bssid] = result
+                    // 최초 측정 시 dynamicAllowedWifiSSIDs가 설정되지 않은 경우에는 모든 결과를 수집하고,
+                    // 이후 측정부터는 선택된 SSID만 수집합니다.
+                    if (dynamicAllowedWifiSSIDs == null || result.SSID in dynamicAllowedWifiSSIDs!!) {
+                        val existing = wifiResultsMap[result.SSID]
+                        if (existing == null || result.level > existing.level) {
+                            wifiResultsMap[result.SSID] = result
+                        }
                     }
                 }
             } else {
@@ -100,6 +108,7 @@ class Make_RadioMap : AppCompatActivity() {
                 Toast.makeText(this, "위치 인덱스를 입력해주세요", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
+            // 새로운 측정을 위해 결과 맵 초기화
             wifiResultsMap.clear()
             tvStatus.text = "측정 시작합니다... (위치: $index)"
             Toast.makeText(this, "측정 시작합니다", Toast.LENGTH_SHORT).show()
@@ -138,7 +147,7 @@ class Make_RadioMap : AppCompatActivity() {
                             scanCount++
                             tvStatus.text = "Wi-Fi 스캔 중... ($scanCount/$totalScans)"
                             if (scanCount < totalScans) {
-                                scanHandler.postDelayed(this, 10000)
+                                scanHandler.postDelayed(this, 4000)
                             } else {
                                 processScanResults(index)
                             }
@@ -160,11 +169,27 @@ class Make_RadioMap : AppCompatActivity() {
     }
 
     private fun processScanResults(index: String) {
-        val sortedResults = wifiResultsMap.values.sortedByDescending { it.level }.take(5)
+        // 최초 측정 시 dynamicAllowedWifiSSIDs가 아직 설정되지 않았다면,
+        // wifiResultsMap에서 신호 강도 순으로 정렬하여 상위 10개의 SSID를 선택합니다.
+        if (dynamicAllowedWifiSSIDs == null) {
+            dynamicAllowedWifiSSIDs = wifiResultsMap.values
+                .sortedByDescending { it.level }
+                .map { it.SSID }
+                .distinct()
+                .take(10)
+            Log.d("Make_RadioMap", "선택된 SSID: $dynamicAllowedWifiSSIDs")
+        }
         val csvRow = StringBuilder()
         csvRow.append(index)
-        for (result in sortedResults) {
-            csvRow.append(",").append(result.level)
+        // 선택된 SSID 순서대로, 해당 값이 있으면 소수점 3자리로 포맷, 없으면 -100.000 기록
+        dynamicAllowedWifiSSIDs?.forEach { ssid ->
+            val level: Double = if (wifiResultsMap.containsKey(ssid)) {
+                wifiResultsMap[ssid]?.level?.toDouble() ?: -100.0
+            } else {
+                -100.0
+            }
+            val formattedLevel = String.format(Locale.getDefault(), "%.3f", level)
+            csvRow.append(",").append(formattedLevel)
         }
         measurementRows.add(csvRow.toString())
         tvStatus.text = "측정이 완료되었습니다. 다음 위치 인덱스를 입력해주세요."
@@ -175,11 +200,12 @@ class Make_RadioMap : AppCompatActivity() {
 
     private fun saveCsvFile() {
         val fileNameInput = etFileName.text.toString()
-        if (fileNameInput.isEmpty() || measurementRows.isEmpty()) {
+        if (fileNameInput.isEmpty() || measurementRows.isEmpty() || dynamicAllowedWifiSSIDs == null) {
             Toast.makeText(this, "파일명 또는 측정 데이터가 없습니다.", Toast.LENGTH_SHORT).show()
             return
         }
-        val header = "Index,AP1_RSSI,AP2_RSSI,AP3_RSSI,AP4_RSSI,AP5_RSSI\n"
+        // CSV 헤더를 "Index"와 동적으로 선택된 Wi-Fi SSID로 구성합니다.
+        val header = "Index," + dynamicAllowedWifiSSIDs!!.joinToString(",") + "\n"
         val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
         val currentDateTime = sdf.format(Date())
         val fileName = "${fileNameInput}_${currentDateTime}_Radiomap.csv"
