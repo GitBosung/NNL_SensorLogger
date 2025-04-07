@@ -87,7 +87,7 @@ timestamp,acc_x,acc_y,acc_z,gyro_x,gyro_y,gyro_z,yaw,pitch,roll,latitude,longitu
 
 ### Wi-Fi 라디오맵 (CSV)
 Index,AP1,AP2,AP3,AP4,AP5,AP6,AP7,AP8,AP9,AP10 
-1,-42,-51,-60,-70,-100,-100,-100,-100,-100,-100 2,-45,-55,-61,-68,-75,-100,-100,-100,-100,-100
+1,-42,-51,-60,-70,-100,-100,-100,-100,-100,-100 
 
 - `Index`: 측정 위치 번호
 - `APn`: 선택된 SSID 10개에 대한 RSSI (신호가 없을 경우 -100 기록)
