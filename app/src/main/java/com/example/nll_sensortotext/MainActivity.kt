@@ -21,7 +21,7 @@ class MainActivity : AppCompatActivity() {
 
 
         btnWifi.setOnClickListener{
-            val intent = Intent(this, Wifi::class.java)
+            val intent = Intent(this, Make_RadioMap::class.java)
             startActivity(intent)
         }
 
