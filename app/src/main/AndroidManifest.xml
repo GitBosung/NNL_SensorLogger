@@ -10,6 +10,9 @@
     <uses-feature android:name="android.hardware.sensor.barometer" />
     <uses-feature android:name="android.hardware.sensor.compass" />
 
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
     <!-- Wi-Fi 및 네트워크 관련 권한 -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
@@ -58,5 +61,11 @@
             android:exported="true"
             android:label="@string/app_name"
             android:theme="@style/AppTheme"/>
+        <activity
+            android:name=".ArduinoLoggingActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            android:label="@string/app_name" />
+
     </application>
 </manifest>

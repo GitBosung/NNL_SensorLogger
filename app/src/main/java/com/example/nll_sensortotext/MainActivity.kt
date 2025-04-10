@@ -16,8 +16,9 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_main)
 
-        var btnWifi : Button = findViewById(R.id.btnwifi)
-        var btnSensorData : Button = findViewById(R.id.btnSensorData)
+        val btnWifi : Button = findViewById(R.id.btnwifi)
+        val btnSensorData : Button = findViewById(R.id.btnSensorData)
+        val btnArduino: Button = findViewById(R.id.btnArduino)
 
 
         btnWifi.setOnClickListener{
@@ -27,6 +28,11 @@ class MainActivity : AppCompatActivity() {
 
         btnSensorData.setOnClickListener{
             val intent = Intent(this, SensorData::class.java)
+            startActivity(intent)
+        }
+
+        btnArduino.setOnClickListener {
+            val intent = Intent(this, ArduinoLoggingActivity::class.java)
             startActivity(intent)
         }
 
