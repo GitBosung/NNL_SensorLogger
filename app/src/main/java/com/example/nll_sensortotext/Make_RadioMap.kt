@@ -31,6 +31,7 @@ class Make_RadioMap : AppCompatActivity() {
     private lateinit var btnFinish: Button
     private lateinit var tvStatus: TextView
 
+
     // 최초 측정 시 동적으로 선정된 10개 SSID를 저장하는 변수 (처음 측정 후 이후 측정에 동일하게 사용)
     private var dynamicAllowedWifiSSIDs: List<String>? = null
 

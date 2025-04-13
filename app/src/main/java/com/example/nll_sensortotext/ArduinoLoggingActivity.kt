@@ -3,17 +3,24 @@ package com.example.nll_sensortotext
 import android.Manifest
 import android.app.AlertDialog
 import android.bluetooth.*
-import android.bluetooth.le.*
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanResult as BleScanResult
+import android.bluetooth.le.ScanSettings
+import android.bluetooth.le.ScanFilter
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.net.wifi.ScanResult as WifiScanResult
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
-import android.provider.Settings
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import android.widget.Button
 import android.widget.TextView
@@ -44,6 +51,60 @@ class ArduinoLoggingActivity : AppCompatActivity() {
     private var csvFile: File? = null
     private var csvWriter: BufferedWriter? = null
 
+    // --- WiFi 로깅 관련 변수 ---
+    private var wifiManager: WifiManager? = null
+    private val wifiHandler = Handler(Looper.getMainLooper())
+    // 초기 스캔 후, 신호 세기가 큰 상위 10개 AP (BSSID 기준) 정보를 저장
+    private var selectedAPs: List<WifiScanResult> = emptyList()
+    // 4초 간격 WiFi 스캔 Runnable
+    private val wifiScanRunnable = object : Runnable {
+        override fun run() {
+            if (ActivityCompat.checkSelfPermission(
+                    this@ArduinoLoggingActivity,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                logText("❗ WiFi 스캔 권한이 없습니다.")
+                return
+            }
+            wifiManager?.startScan()
+            wifiHandler.postDelayed(this, 1000)
+        }
+    }
+
+    // WiFi 스캔 결과를 수신할 BroadcastReceiver
+    private val wifiScanReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == WifiManager.SCAN_RESULTS_AVAILABLE_ACTION) {
+                val results = wifiManager?.scanResults ?: return
+
+                if (selectedAPs.isEmpty()) {
+                    // 최초 스캔 결과: 신호 세기를 기준으로 내림차순 정렬 후 상위 10개 선택
+                    selectedAPs = results.sortedByDescending { it.level }.take(10)
+                    val apNames = selectedAPs.joinToString { it.SSID }
+                    logText("선택된 AP: $apNames")
+                } else {
+                    // 기존에 선택된 AP 목록에 대해 현재 RSSI 값 업데이트
+                    val wifiValues = selectedAPs.map { ap ->
+                        results.find { it.BSSID == ap.BSSID }?.level?.toString() ?: "-100"
+                    }
+                    // CSV 파일에 WiFi 로깅 (센서 데이터 6개 자리는 빈 값)
+                    val timestamp = System.currentTimeMillis()
+                    val emptySensorFields = List(7) { "" }.joinToString(",")
+                    val wifiRow = "$timestamp,wifi,$emptySensorFields,${wifiValues.joinToString(",")}\n"
+                    try {
+                        csvWriter?.write(wifiRow)
+                        csvWriter?.flush()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        logText("CSV 파일 WiFi 쓰기 에러: ${e.message}")
+                    }
+                }
+            }
+        }
+    }
+    // --- // WiFi 로깅 관련 변수 ---
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_arduino_logging)
@@ -54,6 +115,11 @@ class ArduinoLoggingActivity : AppCompatActivity() {
         btnStop = findViewById(R.id.btnStopLogging)
 
         bluetoothAdapter = (getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter
+
+        // WifiManager 초기화 및 스캔 결과 Receiver 등록
+        wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        val intentFilter = IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)
+        registerReceiver(wifiScanReceiver, intentFilter)
 
         btnConnect.setOnClickListener { startBLEScan() }
         btnStart.setOnClickListener { sendStartCommand() }
@@ -84,7 +150,7 @@ class ArduinoLoggingActivity : AppCompatActivity() {
             }
 
             if (allGranted) {
-                logText("\uD83D\uDCF2 모든 권한 허용됨! BLE 시작 가능")
+                logText("\uD83D\uDCF2 모든 권한 허용됨! BLE 및 WiFi 스캔 시작 가능")
             } else {
                 logText("❗ 일부 권한이 거부되었습니다. 기능 제한")
             }
@@ -94,7 +160,7 @@ class ArduinoLoggingActivity : AppCompatActivity() {
     private fun showPermissionDeniedDialog() {
         AlertDialog.Builder(this)
             .setTitle("권한 필요")
-            .setMessage("BLE 기능을 사용하려면 필수 권한이 필요합니다.\n앱 설정에서 권한을 직접 허용해주세요.")
+            .setMessage("BLE 및 WiFi 기능을 사용하려면 필수 권한이 필요합니다.\n앱 설정에서 권한을 직접 허용해주세요.")
             .setPositiveButton("설정 열기") { _, _ ->
                 val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
                 val uri: Uri = Uri.fromParts("package", packageName, null)
@@ -119,6 +185,12 @@ class ArduinoLoggingActivity : AppCompatActivity() {
                 permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION)
             }
         }
+        // WiFi 스캔을 위해 ACCESS_FINE_LOCATION 권한 추가
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            if (!permissionsToRequest.contains(Manifest.permission.ACCESS_FINE_LOCATION)) {
+                permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION)
+            }
+        }
         if (permissionsToRequest.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, permissionsToRequest.toTypedArray(), 100)
         } else {
@@ -127,7 +199,6 @@ class ArduinoLoggingActivity : AppCompatActivity() {
     }
 
     private fun startBLEScan() {
-        // BLE 스캔 권한 체크
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN)
             != PackageManager.PERMISSION_GRANTED) {
             logText("❗ BLE 스캔 권한이 없습니다.")
@@ -145,7 +216,7 @@ class ArduinoLoggingActivity : AppCompatActivity() {
     }
 
     private val scanCallback = object : ScanCallback() {
-        override fun onScanResult(callbackType: Int, result: ScanResult) {
+        override fun onScanResult(callbackType: Int, result: BleScanResult) {
             if (result.device.name == DEVICE_NAME) {
                 logText("BLE 장치 발견: ${result.device.name}")
                 bluetoothAdapter?.bluetoothLeScanner?.stopScan(this)
@@ -155,7 +226,6 @@ class ArduinoLoggingActivity : AppCompatActivity() {
     }
 
     private fun connectToDevice(device: BluetoothDevice) {
-        // BLE 연결 권한 체크
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
             != PackageManager.PERMISSION_GRANTED) {
             logText("❗ BLE 연결 권한이 없습니다.")
@@ -180,7 +250,11 @@ class ArduinoLoggingActivity : AppCompatActivity() {
             writeCharacteristic = service?.getCharacteristic(CHARACTERISTIC_WRITE_UUID)
             val notifyChar = service?.getCharacteristic(CHARACTERISTIC_NOTIFY_UUID)
 
-            if (notifyChar != null && ActivityCompat.checkSelfPermission(this@ArduinoLoggingActivity, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
+            if (notifyChar != null && ActivityCompat.checkSelfPermission(
+                    this@ArduinoLoggingActivity,
+                    Manifest.permission.BLUETOOTH_CONNECT
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
                 gatt.setCharacteristicNotification(notifyChar, true)
                 val descriptor = notifyChar.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"))
                 descriptor?.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
@@ -191,18 +265,20 @@ class ArduinoLoggingActivity : AppCompatActivity() {
 
         override fun onCharacteristicChanged(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?) {
             val rawBytes = characteristic?.value
-            val data = rawBytes?.let { String(it, Charsets.UTF_8) }
-            data?.let {
-                logText("수신: $it")
-                csvWriter?.let { writer ->
-                    try {
-                        writer.write("$it\n")
-                        writer.flush()
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                        logText("CSV 파일 쓰기 에러: ${e.message}")
-                    }
+            val sensorData = rawBytes?.let { String(it, Charsets.UTF_8) }
+            sensorData?.let {
+                val timestamp = System.currentTimeMillis()
+                // 센서 데이터 6개(ax,ay,az,gx,gy,gz)와 WiFi 데이터 10개는 CSV에서 분리되어 기록함
+                val emptyWifiFields = List(10) { "" }.joinToString(",")
+                val row = "$timestamp,sensor,$it,$emptyWifiFields\n"
+                try {
+                    csvWriter?.write(row)
+                    csvWriter?.flush()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    logText("CSV 파일 쓰기 에러: ${e.message}")
                 }
+                logText("수신: $it")
             }
         }
 
@@ -215,9 +291,9 @@ class ArduinoLoggingActivity : AppCompatActivity() {
         }
     }
 
-
     private fun sendStartCommand() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
+            != PackageManager.PERMISSION_GRANTED) {
             logText("BLUETOOTH_CONNECT 권한이 필요합니다.")
             return
         }
@@ -228,6 +304,8 @@ class ArduinoLoggingActivity : AppCompatActivity() {
                 bluetoothGatt?.writeCharacteristic(it)
                 logText("\"start\" 명령 전송 완료")
                 startCsvLogging()
+                // 센서 데이터 로깅과 함께 WiFi 스캔 시작 (4초 주기)
+                wifiHandler.post(wifiScanRunnable)
             } catch (e: SecurityException) {
                 logText("보안 예외 발생: ${e.message}")
             }
@@ -235,7 +313,8 @@ class ArduinoLoggingActivity : AppCompatActivity() {
     }
 
     private fun sendStopCommand() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
+            != PackageManager.PERMISSION_GRANTED) {
             logText("BLUETOOTH_CONNECT 권한이 필요합니다.")
             return
         }
@@ -245,6 +324,8 @@ class ArduinoLoggingActivity : AppCompatActivity() {
             try {
                 bluetoothGatt?.writeCharacteristic(it)
                 logText("\"stop\" 명령 전송 완료")
+                // WiFi 스캔 중지 및 CSV 로깅 종료
+                wifiHandler.removeCallbacks(wifiScanRunnable)
                 stopCsvLogging()
             } catch (e: SecurityException) {
                 logText("보안 예외 발생: ${e.message}")
@@ -258,7 +339,8 @@ class ArduinoLoggingActivity : AppCompatActivity() {
             val fileName = "sensordata_${System.currentTimeMillis()}.csv"
             csvFile = File(downloadsDir, fileName)
             csvWriter = csvFile?.bufferedWriter()
-            csvWriter?.write("timestamp,ax,ay,az,gx,gy,gz\n")
+            // CSV 헤더: timestamp, logType, 센서 데이터(ax,ay,az,gx,gy,gz) 및 WiFi 데이터(10개)
+            csvWriter?.write("timestamp,logType,clock,ax,ay,az,gx,gy,gz,wifi1,wifi2,wifi3,wifi4,wifi5,wifi6,wifi7,wifi8,wifi9,wifi10\n")
             csvWriter?.flush()
             logText("CSV 파일 생성됨: $fileName")
         } catch (e: Exception) {
@@ -288,6 +370,7 @@ class ArduinoLoggingActivity : AppCompatActivity() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
             bluetoothGatt?.close()
         }
+        unregisterReceiver(wifiScanReceiver)
         super.onDestroy()
     }
 }
