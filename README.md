@@ -94,6 +94,27 @@ Index,AP1,AP2,AP3,AP4,AP5,AP6,AP7,AP8,AP9,AP10
 
 ---
 
+### 3️⃣ Arduino Nano 33 BLE 센서 로깅
+
+- 🔗 **BLE(Bluetooth Low Energy) 통신** 기반 실시간 센서 수신
+- ✅ 스마트폰에서 `start/stop` 명령을 전송하여 Arduino의 센서 데이터 수집 제어
+- ⏱ **수집 주기**: 약 20Hz
+- 📄 **저장 형식 (CSV)**: `timestamp,ax,ay,az,gx,gy,gz`
+
+- 📂 **저장 경로**:  
+  `Downloads/sensordata_yyyyMMdd_HHmmss.csv`
+
+> ※ 센서 측정은 Arduino Nano 33 BLE (BMI270) 보드 기준이며,  
+> BLE UUID 및 수신 포맷은 앱과 Arduino 코드에서 커스터마이징 가능
+
+
+### ✅ Arduino BLE 로깅
+
+1. Arduino Nano 33 BLE 보드에서 전원이 켜지고 BLE가 브로드캐스트되면
+2. Android 앱에서 `BLE 연결` 버튼 클릭
+3. 연결 후 `시작` 버튼으로 센서 수집 시작 → `중지` 버튼으로 종료
+4. CSV 파일이 자동 생성되어 `Downloads` 폴더에 저장됨
+
 ## 📌 참고사항
 
 - Android 12 이상에서는 다음 권한이 필요합니다:
