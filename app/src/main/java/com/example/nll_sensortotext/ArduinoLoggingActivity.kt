@@ -67,7 +67,7 @@ class ArduinoLoggingActivity : AppCompatActivity() {
                 logText("❗ WiFi 스캔 권한이 없습니다.")
                 return
             }
-            wifiManager?.startScan()
+            wifiManager?.startScan() 
             wifiHandler.postDelayed(this, 1000)
         }
     }
