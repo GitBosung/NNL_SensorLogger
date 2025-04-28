@@ -19,6 +19,7 @@ class MainActivity : AppCompatActivity() {
         val btnWifi : Button = findViewById(R.id.btnwifi)
         val btnSensorData : Button = findViewById(R.id.btnSensorData)
         val btnArduino: Button = findViewById(R.id.btnArduino)
+        val btnSensorRadiomap: Button = findViewById(R.id.btnSensorRadiomap)
 
 
         btnWifi.setOnClickListener{
@@ -33,6 +34,11 @@ class MainActivity : AppCompatActivity() {
 
         btnArduino.setOnClickListener {
             val intent = Intent(this, ArduinoLoggingActivity::class.java)
+            startActivity(intent)
+        }
+
+        btnSensorRadiomap.setOnClickListener {  // 추가!
+            val intent = Intent(this, Make_Sensor_RadioMap::class.java)
             startActivity(intent)
         }
 

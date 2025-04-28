@@ -1,53 +1,60 @@
-<!-- res/layout/activity_main.xml -->
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:padding="24dp">
 
-    <Button
-        android:id="@+id/btnwifi"
-        android:layout_width="174dp"
-        android:layout_height="95dp"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentTop="true"
-        android:layout_marginStart="17dp"
-        android:layout_marginTop="135dp"
-        android:text="Make Radio Map" />
 
-    <Button
-        android:id="@+id/btnSensorData"
-        android:layout_width="183dp"
-        android:layout_height="92dp"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentTop="true"
-        android:layout_centerHorizontal="true"
-        android:layout_marginStart="207dp"
-        android:layout_marginTop="137dp"
-        android:text="Start Logging \n (Sensor, GPS Only)" />
 
-    <TextView
-        android:id="@+id/textView6"
+    <LinearLayout
+        android:orientation="vertical"
         android:layout_width="match_parent"
-        android:layout_height="137dp"
-        android:layout_alignParentEnd="true"
-        android:layout_alignParentBottom="true"
-        android:layout_marginEnd="0dp"
-        android:layout_marginBottom="594dp"
-        android:gravity="center"
-        android:text="Next Nav Lab.\n Sensor Logger "
-        android:textAlignment="center"
-        android:textSize="28sp"
-        android:textStyle="bold" />
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal">
 
-    <Button
-        android:id="@+id/btnArduino"
-        android:layout_width="180dp"
-        android:layout_height="95dp"
-        android:layout_below="@id/btnwifi"
-        android:layout_marginTop="30dp"
-        android:layout_centerHorizontal="true"
-        android:text="Arduino\nSensor Logging" />
+        <TextView
+            android:id="@+id/textView6"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Next Nav Lab.\nSensor Logger"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:paddingBottom="32dp"
+            />
 
+        <Button
+            android:id="@+id/btnwifi"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Make Radio Map"
+            android:textSize="18sp"
+            android:layout_marginBottom="16dp" />
 
-</RelativeLayout>
+        <Button
+            android:id="@+id/btnSensorData"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Start Logging\n(Sensor, GPS Only)"
+            android:textSize="18sp"
+            android:layout_marginBottom="16dp" />
+
+        <Button
+            android:id="@+id/btnSensorRadiomap"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="센서 + Wi-Fi 수집"
+            android:textSize="18sp"
+            android:layout_marginBottom="16dp" />
+
+        <Button
+            android:id="@+id/btnArduino"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Arduino\nSensor Logging"
+            android:textSize="18sp"
+            android:layout_marginBottom="16dp" />
+
+    </LinearLayout>
+</ScrollView>

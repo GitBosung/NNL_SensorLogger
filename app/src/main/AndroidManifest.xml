@@ -67,5 +67,11 @@
             android:theme="@style/Theme.AppCompat.Light.NoActionBar"
             android:label="@string/app_name" />
 
+        <activity
+            android:name=".Make_Sensor_RadioMap"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/AppTheme" />
+
     </application>
 </manifest>
