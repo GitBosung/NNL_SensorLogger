@@ -31,10 +31,8 @@ class Make_RadioMap : AppCompatActivity() {
     private lateinit var btnFinish: Button
     private lateinit var tvStatus: TextView
 
-    // SSID별 최강 ScanResult 저장
-    private val wifiResultsMap: MutableMap<String, ScanResult> = mutableMapOf()
-    // 위치별 한 행씩 저장
-    private val measurementRows = mutableListOf<String>()
+    private val wifiResultsMap = mutableMapOf<String, ScanResult>()
+    private val measurementData = mutableListOf<Measurement>()
 
     private val PERMISSION_REQUEST_CODE = 100
     private var scanCount = 0
@@ -53,9 +51,7 @@ class Make_RadioMap : AppCompatActivity() {
             }
             val success = intent?.getBooleanExtra(WifiManager.EXTRA_RESULTS_UPDATED, false) ?: false
             if (success) {
-                val results = wifiManager.scanResults
-                for (result in results) {
-                    // SSID별 최강 신호만 보관
+                wifiManager.scanResults.forEach { result ->
                     val existing = wifiResultsMap[result.SSID]
                     if (existing == null || result.level > existing.level) {
                         wifiResultsMap[result.SSID] = result
@@ -66,6 +62,8 @@ class Make_RadioMap : AppCompatActivity() {
             }
         }
     }
+
+    data class Measurement(val index: String, val rssiMap: Map<String, Int>)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -80,7 +78,6 @@ class Make_RadioMap : AppCompatActivity() {
         btnFinish.isEnabled = false
         wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
 
-        // 권한 요청
         val permissions = mutableListOf<String>()
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
@@ -162,23 +159,9 @@ class Make_RadioMap : AppCompatActivity() {
     }
 
     private fun processScanResults(index: String) {
-        // SSID 알파벳 순 정렬 후 "SSID:RSSI" 페어 생성
-        val pairs = wifiResultsMap.entries
-            .sortedBy { it.key }
-            .map { (ssid, result) ->
-                String.format(Locale.getDefault(), "%s:%.3f", ssid, result.level.toDouble())
-            }
-
-        // 하나의 행으로 병합
-        val row = buildString {
-            append(index)
-            if (pairs.isNotEmpty()) {
-                append(",")
-                append(pairs.joinToString(","))
-            }
-        }
-        measurementRows.add(row)
-
+        val rssiMap = wifiResultsMap.mapValues { it.value.level }
+        measurementData.add(Measurement(index, rssiMap))
+        wifiResultsMap.clear()
         tvStatus.text = "측정 완료! 다음 위치를 입력해주세요."
         Toast.makeText(this, "측정이 완료되었습니다!", Toast.LENGTH_SHORT).show()
         etIndex.text.clear()
@@ -187,12 +170,14 @@ class Make_RadioMap : AppCompatActivity() {
 
     private fun saveCsvFile() {
         val name = etFileName.text.toString().trim()
-        if (name.isEmpty() || measurementRows.isEmpty()) {
+        if (name.isEmpty() || measurementData.isEmpty()) {
             Toast.makeText(this, "파일명 또는 데이터가 없습니다.", Toast.LENGTH_SHORT).show()
             return
         }
-        // 헤더: Index만 고정
-        val header = "Index\n"
+        // 모든 SSID를 모아서 정렬
+        val allSsids = measurementData.flatMap { it.rssiMap.keys }.distinct().sorted()
+        // 헤더 고정: x, y + SSID 목록
+        val headers = listOf("x", "y") + allSsids
         val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
         val timestamp = sdf.format(Date())
         val fileName = "${name}_${timestamp}_Radiomap.csv"
@@ -201,11 +186,21 @@ class Make_RadioMap : AppCompatActivity() {
             val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
             val file = File(downloads, fileName)
             FileWriter(file).use { writer ->
-                writer.write(header)
-                measurementRows.forEach { writer.write(it + "\n") }
+                // 헤더 쓰기
+                writer.write(headers.joinToString(",") + "\n")
+                // 각 위치별 RSSI값 쓰기
+                measurementData.forEach { (index, rssiMap) ->
+                    // index를 "x,y"로 입력했다고 가정
+                    val coords = index.split(",")
+                    val x = coords.getOrNull(0) ?: ""
+                    val y = coords.getOrNull(1) ?: ""
+                    val values = allSsids.map { ssid -> rssiMap[ssid] ?: -100 }
+                    val row = listOf(x, y) + values
+                    writer.write(row.joinToString(",") + "\n")
+                }
             }
             Toast.makeText(this, "CSV 저장됨: $fileName", Toast.LENGTH_LONG).show()
-            measurementRows.clear()
+            measurementData.clear()
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(this, "CSV 저장 실패", Toast.LENGTH_SHORT).show()

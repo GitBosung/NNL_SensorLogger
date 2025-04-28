@@ -199,3 +199,5 @@ class Make_Sensor_RadioMap : AppCompatActivity(), SensorEventListener {
         unregisterReceiverSafe(wifiScanReceiver)
     }
 }
+
+
