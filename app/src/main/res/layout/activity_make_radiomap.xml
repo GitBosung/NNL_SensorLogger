@@ -50,6 +50,17 @@
             android:textSize="16sp"
             android:layout_marginTop="16dp" />
 
+        <TextView
+            android:id="@+id/tvLog"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="8dp"
+            android:text="마지막 저장 좌표: -"
+            android:textSize="16sp"
+            android:textColor="@android:color/black"
+            android:background="#EEEEEE"
+            android:layout_marginTop="16dp"/>
+
         <View
             android:layout_width="match_parent"
             android:layout_height="200dp" />

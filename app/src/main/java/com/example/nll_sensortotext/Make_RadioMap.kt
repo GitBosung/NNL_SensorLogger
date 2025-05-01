@@ -30,8 +30,9 @@ class Make_RadioMap : AppCompatActivity() {
     private lateinit var btnStart: Button
     private lateinit var btnFinish: Button
     private lateinit var tvStatus: TextView
+    private lateinit var tvLog: TextView
 
-    // SSID 별로 스캔된 RSSI 값을 모두 저장할 리스트 맵
+    // BSSID(MAC Address) 별로 스캔된 RSSI 값을 모두 저장할 리스트 맵
     private val wifiResultsMap = mutableMapOf<String, MutableList<Int>>()
     private val measurementData = mutableListOf<Measurement>()
 
@@ -52,9 +53,9 @@ class Make_RadioMap : AppCompatActivity() {
             }
             val success = intent?.getBooleanExtra(WifiManager.EXTRA_RESULTS_UPDATED, false) ?: false
             if (success) {
-                // 이번 스캔 결과를 SSID 별 리스트에 추가
+                // 이번 스캔 결과를 BSSID별 리스트에 추가
                 wifiManager.scanResults.forEach { result ->
-                    val list = wifiResultsMap.getOrPut(result.SSID) { mutableListOf() }
+                    val list = wifiResultsMap.getOrPut(result.BSSID) { mutableListOf() }
                     list.add(result.level)
                 }
             } else {
@@ -74,6 +75,7 @@ class Make_RadioMap : AppCompatActivity() {
         btnStart   = findViewById(R.id.btnStart)
         btnFinish  = findViewById(R.id.btnFinish)
         tvStatus   = findViewById(R.id.tvStatus)
+        tvLog      = findViewById(R.id.tvLog)
 
         btnFinish.isEnabled = false
         wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
@@ -161,18 +163,25 @@ class Make_RadioMap : AppCompatActivity() {
     }
 
     private fun processScanResults(index: String) {
-        // SSID별로 수집된 RSSI 리스트에서 -100을 제외하고 평균을 계산
+        // BSSID별로 수집된 RSSI 리스트에서 -100 제외 후 평균 계산
         val rssiMap = wifiResultsMap.mapValues { (_, levels) ->
             val validLevels = levels.filter { it != -100 }
             if (validLevels.isNotEmpty()) {
-                (validLevels.average()).toInt()
+                validLevels.average().toInt()
             } else {
                 -100
             }
         }
         measurementData.add(Measurement(index, rssiMap))
         wifiResultsMap.clear()
+
+        // 인덱스 문자열 "x,y" 분리
+        val coords = index.split(",")
+        val x = coords.getOrNull(0) ?: "-"
+        val y = coords.getOrNull(1) ?: "-"
+        tvLog.text = "마지막 저장 좌표: x = $x, y = $y"
         tvStatus.text = "측정 완료! 다음 위치를 입력해주세요."
+
         Toast.makeText(this, "측정이 완료되었습니다!", Toast.LENGTH_SHORT).show()
         etIndex.text.clear()
         btnFinish.isEnabled = true
@@ -184,10 +193,10 @@ class Make_RadioMap : AppCompatActivity() {
             Toast.makeText(this, "파일명 또는 데이터가 없습니다.", Toast.LENGTH_SHORT).show()
             return
         }
-        // 모든 SSID를 모아서 정렬
-        val allSsids = measurementData.flatMap { it.rssiMap.keys }.distinct().sorted()
-        // 헤더 고정: x, y + SSID 목록
-        val headers = listOf("x", "y") + allSsids
+        // 모든 BSSID를 모아서 정렬
+        val allBssids = measurementData.flatMap { it.rssiMap.keys }.distinct().sorted()
+        // 헤더 고정: x, y + BSSID 목록
+        val headers = listOf("x", "y") + allBssids
         val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
         val timestamp = sdf.format(Date())
         val fileName = "${name}_${timestamp}_Radiomap.csv"
@@ -203,7 +212,7 @@ class Make_RadioMap : AppCompatActivity() {
                     val coords = index.split(",")
                     val x = coords.getOrNull(0) ?: ""
                     val y = coords.getOrNull(1) ?: ""
-                    val values = allSsids.map { ssid -> rssiMap[ssid] ?: -100 }
+                    val values = allBssids.map { bssid -> rssiMap[bssid] ?: -100 }
                     val row = listOf(x, y) + values
                     writer.write(row.joinToString(",") + "\n")
                 }
