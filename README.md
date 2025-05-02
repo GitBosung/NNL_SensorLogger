@@ -147,6 +147,6 @@ Index,AP1,AP2,AP3,AP4,AP5,AP6,AP7,AP8,AP9,AP10
 
 ## 👨‍💻 개발자
 
-- 김보성 (Bosung Kim)  
+- 김보성 (Boseong Kim)  
 - GitHub: [GitBosung](https://github.com/GitBosung)
 
