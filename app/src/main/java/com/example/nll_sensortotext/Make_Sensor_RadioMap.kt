@@ -31,13 +31,17 @@ class Make_Sensor_RadioMap : AppCompatActivity(), SensorEventListener {
     private var isCollecting = false
     private val sensorDataRows = mutableListOf<String>()
 
-    // BSSID 기준으로 수집된 RSSI 값을 저장
-    private val wifiScanResultsByTime = mutableListOf<Pair<Long, Map<String, Int>>>()
+    // BSSID 기준으로 수집된 SSID, RSSI 및 주파수 값을 저장
+    private val wifiScanResultsByTime = mutableListOf<Pair<Long, Map<String, Triple<String, Int, Int>>>>()
     private val allBssidSet = mutableSetOf<String>()
 
     private val handler = Handler(Looper.getMainLooper())
     private var lastAccel = FloatArray(3)
     private var lastGyro = FloatArray(3)
+    private var lastMag = FloatArray(3)
+    private var lastOrient = FloatArray(3)
+    private var lastGameRot = FloatArray(4)
+    private var lastPressure = 0f    // 기압센서 값 (hPa)
 
     private val sensorIntervalMs = 20L    // 50Hz
     private val wifiScanIntervalMs = 4000L // 4초마다 Wi-Fi 스캔
@@ -45,9 +49,7 @@ class Make_Sensor_RadioMap : AppCompatActivity(), SensorEventListener {
     private val wifiScanReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val success = intent?.getBooleanExtra(WifiManager.EXTRA_RESULTS_UPDATED, false) ?: false
-            if (success) {
-                saveWifiResults(wifiManager.scanResults)
-            }
+            if (success) saveWifiResults(wifiManager.scanResults)
         }
     }
 
@@ -82,19 +84,21 @@ class Make_Sensor_RadioMap : AppCompatActivity(), SensorEventListener {
         allBssidSet.clear()
         tvStatus.text = "데이터 수집 중..."
 
-        // 센서 리스너 등록
-        sensorManager.registerListener(
-            this,
-            sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
-            SensorManager.SENSOR_DELAY_FASTEST
+        // 센서 리스너 등록 (50Hz)
+        val sensors = arrayOf(
+            Sensor.TYPE_ACCELEROMETER,
+            Sensor.TYPE_GYROSCOPE,
+            Sensor.TYPE_MAGNETIC_FIELD,
+            Sensor.TYPE_ORIENTATION,
+            Sensor.TYPE_GAME_ROTATION_VECTOR,
+            Sensor.TYPE_PRESSURE       // 기압센서 추가
         )
-        sensorManager.registerListener(
-            this,
-            sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE),
-            SensorManager.SENSOR_DELAY_FASTEST
-        )
+        sensors.forEach { type ->
+            sensorManager.getDefaultSensor(type)?.let {
+                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST)
+            }
+        }
 
-        // 주기적 수집 시작
         handler.post(sensorRunnable)
         handler.post(wifiRunnable)
     }
@@ -103,7 +107,7 @@ class Make_Sensor_RadioMap : AppCompatActivity(), SensorEventListener {
         if (!isCollecting) return
         isCollecting = false
 
-        sensorManager.unregisterListener(this)
+        try { sensorManager.unregisterListener(this) } catch (_: IllegalArgumentException) {}
         handler.removeCallbacksAndMessages(null)
         unregisterReceiverSafe(wifiScanReceiver)
 
@@ -115,7 +119,16 @@ class Make_Sensor_RadioMap : AppCompatActivity(), SensorEventListener {
         override fun run() {
             if (!isCollecting) return
             val timestamp = System.currentTimeMillis()
-            val row = "$timestamp,${lastAccel.joinToString(",")},${lastGyro.joinToString(",")}"
+            // 타임스탬프, Acc, Gyro, Mag, Orientation, GameRot, Pressure 순
+            val row = StringBuilder().apply {
+                append(timestamp)
+                append(",${lastAccel.joinToString(",")}")
+                append(",${lastGyro.joinToString(",")}")
+                append(",${lastMag.joinToString(",")}")
+                append(",${lastOrient.joinToString(",")}")
+                append(",${lastGameRot.joinToString(",")}")
+                append(",${lastPressure}")
+            }.toString()
             sensorDataRows.add(row)
             handler.postDelayed(this, sensorIntervalMs)
         }
@@ -124,7 +137,7 @@ class Make_Sensor_RadioMap : AppCompatActivity(), SensorEventListener {
     private val wifiRunnable = object : Runnable {
         override fun run() {
             if (!isCollecting) return
-            wifiManager.startScan()
+            try { wifiManager.startScan() } catch (_: SecurityException) {}
             handler.postDelayed(this, wifiScanIntervalMs)
         }
     }
@@ -132,8 +145,12 @@ class Make_Sensor_RadioMap : AppCompatActivity(), SensorEventListener {
     override fun onSensorChanged(event: SensorEvent?) {
         event?.let {
             when (it.sensor.type) {
-                Sensor.TYPE_ACCELEROMETER -> lastAccel = it.values.clone()
-                Sensor.TYPE_GYROSCOPE     -> lastGyro  = it.values.clone()
+                Sensor.TYPE_ACCELEROMETER         -> lastAccel  = it.values.clone()
+                Sensor.TYPE_GYROSCOPE             -> lastGyro   = it.values.clone()
+                Sensor.TYPE_MAGNETIC_FIELD        -> lastMag    = it.values.clone()
+                Sensor.TYPE_ORIENTATION           -> lastOrient = it.values.clone()
+                Sensor.TYPE_GAME_ROTATION_VECTOR  -> lastGameRot = it.values.clone()
+                Sensor.TYPE_PRESSURE              -> lastPressure = it.values[0]
             }
         }
     }
@@ -142,58 +159,62 @@ class Make_Sensor_RadioMap : AppCompatActivity(), SensorEventListener {
 
     private fun saveWifiResults(results: List<ScanResult>) {
         val timestamp = System.currentTimeMillis()
-        val rssiMap = mutableMapOf<String, Int>()
-        for (result in results) {
-            val bssid = result.BSSID
-            rssiMap[bssid] = result.level
-            allBssidSet.add(bssid)
+        val map = mutableMapOf<String, Triple<String, Int, Int>>() // BSSID -> (SSID, RSSI, freqMHz)
+        results.forEach { res ->
+            map[res.BSSID] = Triple(res.SSID, res.level, res.frequency)
+            allBssidSet.add(res.BSSID)
         }
-        wifiScanResultsByTime.add(timestamp to rssiMap)
+        wifiScanResultsByTime.add(timestamp to map)
     }
 
     private fun saveCsv() {
-        val sdf       = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+        val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
         val timestamp = sdf.format(Date())
         val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
 
-        try {
-            // 1) 센서 데이터 저장
-            val sensorFile = File(downloads, "SensorData_$timestamp.csv")
-            FileWriter(sensorFile).use { writer ->
-                writer.write("Timestamp,AccX,AccY,AccZ,GyroX,GyroY,GyroZ\n")
+        // 1) 센서 데이터 저장
+        File(downloads, "SensorData_$timestamp.csv").apply {
+            FileWriter(this).use { writer ->
+                writer.write(
+                    "Timestamp,AccX,AccY,AccZ,GyroX,GyroY,GyroZ,MagX,MagY,MagZ,OrientationAzimuth,OrientationPitch,OrientationRoll,GameRotX,GameRotY,GameRotZ,GameRotW,Pressure\n"
+                )
                 sensorDataRows.forEach { writer.write(it + "\n") }
             }
+        }
 
-            // 2) Wi-Fi 데이터 저장 (행: 시간, 열: BSSID)
-            val wifiFile  = File(downloads, "WifiData_$timestamp.csv")
-            val bssidList = allBssidSet.sorted()
-            FileWriter(wifiFile).use { writer ->
-                writer.write("Timestamp," + bssidList.joinToString(",") + "\n")
-                for ((time, rssiMap) in wifiScanResultsByTime) {
-                    val row = buildString {
-                        append(time)
-                        for (bssid in bssidList) {
-                            append(",")
-                            append(rssiMap[bssid]?.toString() ?: "-100")
-                        }
+        // 2) Wi-Fi 데이터 저장 (콤마 구분자)
+        File(downloads, "WifiData_$timestamp.csv").apply {
+            FileWriter(this).use { writer ->
+                val delimiter = ","
+                // 헤더: Timestamp 및 AP별 "MAC,대역,SSID"
+                val headerParts = mutableListOf("Timestamp")
+                val bssidList = allBssidSet.sorted()
+                bssidList.forEach { bssid ->
+                    // 첫 스캔부터 해당 AP 정보 찾기
+                    val tri = wifiScanResultsByTime.mapNotNull { it.second[bssid] }.firstOrNull()
+                    val band = tri?.third?.let { if (it >= 5000) "5.0" else "2.4" } ?: ""
+                    val ssid = tri?.first ?: ""
+                    headerParts.add("\"$bssid,$band,$ssid\"")
+                }
+                writer.write(headerParts.joinToString(delimiter) + "\n")
+
+                // 각 행: Timestamp 및 RSSI 값
+                for ((time, map) in wifiScanResultsByTime) {
+                    val parts = mutableListOf(time.toString())
+                    bssidList.forEach { bssid ->
+                        val rssi = map[bssid]?.second ?: -100
+                        parts.add(rssi.toString())
                     }
-                    writer.write(row + "\n")
+                    writer.write(parts.joinToString(delimiter) + "\n")
                 }
             }
-
-            Toast.makeText(this, "CSV 저장 완료", Toast.LENGTH_LONG).show()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(this, "CSV 저장 실패", Toast.LENGTH_SHORT).show()
         }
+
+        Toast.makeText(this, "CSV 저장 완료", Toast.LENGTH_LONG).show()
     }
 
     private fun unregisterReceiverSafe(receiver: BroadcastReceiver) {
-        try {
-            unregisterReceiver(receiver)
-        } catch (_: IllegalArgumentException) {
-            // 이미 해제된 경우 무시
-        }
+        try { unregisterReceiver(receiver) } catch (_: IllegalArgumentException) {}
     }
 
     override fun onResume() {
