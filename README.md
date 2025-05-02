@@ -107,6 +107,27 @@ Index,AP1,AP2,AP3,AP4,AP5,AP6,AP7,AP8,AP9,AP10
 > ※ 센서 측정은 Arduino Nano 33 BLE (BMI270) 보드 기준이며,  
 > BLE UUID 및 수신 포맷은 앱과 Arduino 코드에서 커스터마이징 가능
 
+---
+
+
+### 4️⃣ IMU, RSSI 동시로깅 기능
+- 🕒 **센서 50 Hz 로깅**  
+- Accelerometer, Gyroscope, Magnetometer, Orientation, GameRotationVector, Pressure 센서를 20 ms 간격으로 수집  
+- 각 샘플에 `Timestamp`를 부여하여 `SensorData_yyyyMMdd_HHmmss.csv` 로 저장  
+
+- 📶 **Wi-Fi 4 s 스캔**  
+- 4초마다 Wi-Fi 스캔을 실행하여 AP 당 BSSID, SSID, RSSI, 주파수 대역(2.4/5.0 GHz)을 획득  
+- 스캔 결과를 `WifiData_yyyyMMdd_HHmmss.csv` 에 저장  
+- 헤더: `"MAC,주파수(2.4/5.0),SSID"` (큰따옴표로 묶어 하나의 셀에 표기)  
+- 데이터 행: 해당 AP의 **RSSI 값**만 콤마로 구분하여 기록  
+
+- 📂 **파일 저장 경로**  
+- `Downloads/` 폴더에 두 개의 CSV 파일 생성  
+- `SensorData_…` (센서 전체 로그)  
+- `WifiData_…`   (Wi-Fi RSSI 로그)
+
+---
+
 
 ### ✅ Arduino BLE 로깅
 
