@@ -1,47 +1,42 @@
 package com.example.nll_sensortotext
 
-// MainActivity.kt
-
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Button
 import androidx.appcompat.app.AppCompatActivity
-
-
+import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.card.MaterialCardView
 
 class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         setContentView(R.layout.activity_main)
 
-        val btnWifi : Button = findViewById(R.id.btnwifi)
-        val btnSensorData : Button = findViewById(R.id.btnSensorData)
-        val btnArduino: Button = findViewById(R.id.btnArduino)
-        val btnSensorRadiomap: Button = findViewById(R.id.btnSensorRadiomap)
+        // 1) Toolbar를 ActionBar로 설정
+        val toolbar = findViewById<MaterialToolbar>(R.id.topAppBar)
+        setSupportActionBar(toolbar)
 
+        // 2) MaterialCardView 참조
+        val cardWifi = findViewById<MaterialCardView>(R.id.cardWifi)
+        val cardSensorData = findViewById<MaterialCardView>(R.id.cardSensorData)
+        val cardSensorRadiomap = findViewById<MaterialCardView>(R.id.cardSensorRadiomap)
+        val cardArduino = findViewById<MaterialCardView>(R.id.cardArduino)
 
-        btnWifi.setOnClickListener{
-            val intent = Intent(this, Make_RadioMap::class.java)
-            startActivity(intent)
+        // 3) 클릭 리스너 연결
+        cardWifi.setOnClickListener {
+            startActivity(Intent(this, Make_RadioMap::class.java))
         }
 
-        btnSensorData.setOnClickListener{
-            val intent = Intent(this, SensorData::class.java)
-            startActivity(intent)
+        cardSensorData.setOnClickListener {
+            startActivity(Intent(this, SensorData::class.java))
         }
 
-        btnArduino.setOnClickListener {
-            val intent = Intent(this, ArduinoLoggingActivity::class.java)
-            startActivity(intent)
+        cardSensorRadiomap.setOnClickListener {
+            startActivity(Intent(this, Make_Sensor_RadioMap::class.java))
         }
 
-        btnSensorRadiomap.setOnClickListener {  // 추가!
-            val intent = Intent(this, Make_Sensor_RadioMap::class.java)
-            startActivity(intent)
+        cardArduino.setOnClickListener {
+            startActivity(Intent(this, ArduinoLoggingActivity::class.java))
         }
-
-
     }
 }
