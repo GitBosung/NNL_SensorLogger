@@ -151,8 +151,10 @@ class SensorData : AppCompatActivity(), SensorEventListener {
             currentLocation = loc
 
             if (!isGpsInitialized) {
+                // 최초 GPS fix 시
                 isGpsInitialized = true
                 Toast.makeText(this@SensorData, "GPS 초기화 완료", Toast.LENGTH_SHORT).show()
+                // pendingStart 상태라면 실제 로깅 시작
                 if (pendingStart) {
                     pendingStart = false
                     actualStartLogging()
@@ -183,13 +185,21 @@ class SensorData : AppCompatActivity(), SensorEventListener {
         map.invalidate()
     }
 
-    /** 수집 시작 요청 (GPS 초기화 후 실제 시작) */
+    /** 수집 시작 요청 */
     private fun startCollection() {
-        pendingStart = true
-        tvStatus.text = "상태: GPS 초기화 대기..."
+        // 1) 버튼 중복 클릭 방지
         btnStart.isEnabled = false
-        btnStop.isEnabled  = false
-        btnSave.isEnabled  = false
+
+        if (isGpsInitialized) {
+            // 2) 이미 GPS 준비 완료 상태면 바로 로깅 시작
+            actualStartLogging()
+        } else {
+            // 3) GPS 초기화를 기다려야 하는 경우
+            pendingStart = true
+            tvStatus.text = "상태: GPS 초기화 대기..."
+            btnStop.isEnabled  = false
+            btnSave.isEnabled  = false
+        }
     }
 
     /** GPS 초기화 후 실제 로깅 시작 */
@@ -205,7 +215,8 @@ class SensorData : AppCompatActivity(), SensorEventListener {
 
         pathPoints.clear()
         tvStatus.text = "상태: 수집 중..."
-        btnStop.isEnabled  = true
+        // 로깅 중에는 Stop 버튼만 활성화
+        btnStop.isEnabled = true
         Toast.makeText(this, "로깅 시작", Toast.LENGTH_SHORT).show()
     }
 
@@ -214,7 +225,7 @@ class SensorData : AppCompatActivity(), SensorEventListener {
         sensorExecutor?.shutdownNow()
         tvStatus.text = "상태: 수집 중지"
         btnStop.isEnabled = false
-        btnSave.isEnabled = true
+        btnSave.isEnabled  = true
     }
 
     /** 저장 완료 */
