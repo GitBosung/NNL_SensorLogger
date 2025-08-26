@@ -145,6 +145,30 @@ Index,AP1,AP2,AP3,AP4,AP5,AP6,AP7,AP8,AP9,AP10
 
 ---
 
+
+### 5️⃣ PDR Path 시연 기능
+
+- 👣 **걸음 검출**
+  - Accelerometer threshold + Android StepDetector API (지원 기기)
+  - 보폭 0.7 m 기준으로 이동 거리 업데이트
+  - Heading 값은 **Game Rotation Vector** 센서를 이용해 추정
+
+- 🧭 **Heading 추정**
+  - `TYPE_GAME_ROTATION_VECTOR` 센서로 azimuth(방위각) 계산
+  - 왼쪽/오른쪽 회전 방향이 실제 동작과 일치하도록 좌표계 보정 적용
+
+- 🗺 **경로 시각화**
+  - `SurfaceView` 기반으로 .-.-. 형태의 경로를 실시간으로 그림
+  - 1m 단위 Grid 및 좌표 label 표시
+  - 최대 30걸음까지만 최근 경로 유지
+  - 현재 위치를 항상 화면 중심에 표시하여 **미니맵처럼 이동 경로 확인 가능**
+
+- 📊 **화면 표시**
+  - 상단에 현재 Step 수, 누적 Step 수, Heading 값을 실시간 갱신
+  - 실행 직후에도 Grid가 표시되며, 걸음 발생 시 경로가 갱신됨
+
+
+
 ## 👨‍💻 개발자
 
 - 김보성 (Boseong Kim)  
